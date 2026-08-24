@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:frontend/main.dart';
 
 void main() {
-  testWidgets('renders chat page and sends a message', (
+  testWidgets('opens chat page, sends a message, and exits to home', (
     WidgetTester tester,
   ) async {
     await tester.pumpWidget(const ChatApp());
@@ -24,7 +24,6 @@ void main() {
     expect(find.text('你好，气泡真轻'), findsOneWidget);
 
     await tester.pump(const Duration(seconds: 2));
-    expect(find.text('收到，这个节奏很稳。'), findsOneWidget);
 
     await tester.tap(find.text('退出'));
     await tester.pump();

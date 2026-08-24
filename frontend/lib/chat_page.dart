@@ -1,8 +1,11 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_boring_avatars/flutter_boring_avatars.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
 
 import 'breathing_avatar.dart';
 import 'flow_background.dart';
@@ -46,14 +49,103 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
 
   Timer? _replyTimer;
   int _replySeed = 0;
+  WebSocketChannel? _channel;
+  StreamSubscription<dynamic>? _channelSubscription;
+  bool _connected = false;
+  late final String _clientId =
+      'client-${DateTime.now().microsecondsSinceEpoch}-${math.Random().nextInt(99999)}';
+
+  @override
+  void initState() {
+    super.initState();
+    _connectToBackend();
+  }
 
   @override
   void dispose() {
     _replyTimer?.cancel();
+    _channelSubscription?.cancel();
+    _channel?.sink.close();
     _inputController.dispose();
     _scrollController.dispose();
     _flowController.dispose();
     super.dispose();
+  }
+
+  void _connectToBackend() {
+    try {
+      final channel = WebSocketChannel.connect(
+        Uri.parse('ws://127.0.0.1:8080/ws'),
+      );
+      _channel = channel;
+      _channelSubscription = channel.stream.listen(
+        _handleIncoming,
+        onError: (Object _) => _setConnected(false),
+        onDone: () => _setConnected(false),
+        cancelOnError: true,
+      );
+      channel.ready.then((_) {
+        if (mounted) {
+          _setConnected(true);
+        }
+      }).catchError((Object _) {
+        _setConnected(false);
+      });
+    } catch (_) {
+      _setConnected(false);
+    }
+  }
+
+  void _setConnected(bool value) {
+    if (!mounted || _connected == value) {
+      return;
+    }
+    setState(() => _connected = value);
+  }
+
+  void _handleIncoming(dynamic data) {
+    var raw = '';
+    if (data is String) {
+      raw = data;
+    } else if (data is List<int>) {
+      raw = utf8.decode(data);
+    }
+    if (raw.trim().isEmpty) {
+      return;
+    }
+
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is Map<String, dynamic>) {
+        if (decoded['clientId'] == _clientId) {
+          return;
+        }
+        final text = decoded['text']?.toString() ?? '';
+        if (text.trim().isEmpty) {
+          return;
+        }
+        _addIncoming(decoded['sender']?.toString() ?? '微光', text);
+        return;
+      }
+    } catch (_) {}
+    _addIncoming('微光', raw);
+  }
+
+  void _addIncoming(String sender, String text) {
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _messages.add(
+        ChatMessage(
+          id: 'in-${DateTime.now().microsecondsSinceEpoch}',
+          sender: sender,
+          text: text,
+          time: DateTime.now(),
+        ),
+      );
+    });
+    _scrollToEnd();
   }
 
   void _send() {
@@ -75,7 +167,18 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
     });
     _inputController.clear();
     _scrollToEnd();
-    _scheduleReply();
+    final channel = _channel;
+    if (_connected && channel != null) {
+      channel.sink.add(
+        jsonEncode({
+          'clientId': _clientId,
+          'sender': '我',
+          'text': text,
+        }),
+      );
+    } else {
+      _scheduleReply();
+    }
   }
 
   void _scheduleReply() {
@@ -177,11 +280,11 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
             glowColor: Color(0xFF9ED9FF),
           ),
           const SizedBox(width: 12),
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                const Text(
                   '微光聊天室',
                   style: TextStyle(
                     fontSize: 16,
@@ -190,7 +293,7 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
                     letterSpacing: 0,
                   ),
                 ),
-                SizedBox(height: 3),
+                const SizedBox(height: 3),
                 Row(
                   children: [
                     SizedBox(
@@ -199,14 +302,16 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
                       child: DecoratedBox(
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: Color(0xFF34C98B),
+                          color: _connected
+                              ? const Color(0xFF34C98B)
+                              : const Color(0xFF94A3B8),
                         ),
                       ),
                     ),
-                    SizedBox(width: 6),
+                    const SizedBox(width: 6),
                     Text(
-                      '3 人在线',
-                      style: TextStyle(
+                      _connected ? '后端已连接' : '本地演示',
+                      style: const TextStyle(
                         fontSize: 12,
                         color: Color(0xFF64748B),
                         letterSpacing: 0,
