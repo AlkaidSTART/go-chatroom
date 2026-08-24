@@ -8,10 +8,13 @@ import 'package:flutter_boring_avatars/flutter_boring_avatars.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import 'breathing_avatar.dart';
+import 'chat_socket.dart';
 import 'flow_background.dart';
 
 class ChatPage extends StatefulWidget {
-  const ChatPage({super.key});
+  const ChatPage({super.key, this.channelFactory});
+
+  final ChatSocket Function(Uri uri)? channelFactory;
 
   @override
   State<ChatPage> createState() => _ChatPageState();
@@ -47,9 +50,7 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
     ),
   ];
 
-  Timer? _replyTimer;
-  int _replySeed = 0;
-  WebSocketChannel? _channel;
+  ChatSocket? _socket;
   StreamSubscription<dynamic>? _channelSubscription;
   bool _connected = false;
   late final String _clientId =
@@ -63,9 +64,8 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
 
   @override
   void dispose() {
-    _replyTimer?.cancel();
     _channelSubscription?.cancel();
-    _channel?.sink.close();
+    _socket?.close();
     _inputController.dispose();
     _scrollController.dispose();
     _flowController.dispose();
@@ -74,26 +74,31 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
 
   void _connectToBackend() {
     try {
-      final channel = WebSocketChannel.connect(
-        Uri.parse('ws://127.0.0.1:8080/ws'),
-      );
-      _channel = channel;
-      _channelSubscription = channel.stream.listen(
+      final factory = widget.channelFactory ?? _connectWebSocket;
+      final socket = factory(Uri.parse('ws://127.0.0.1:8080/ws'));
+      _socket = socket;
+      _channelSubscription = socket.stream.listen(
         _handleIncoming,
         onError: (Object _) => _setConnected(false),
         onDone: () => _setConnected(false),
         cancelOnError: true,
       );
-      channel.ready.then((_) {
-        if (mounted) {
-          _setConnected(true);
-        }
-      }).catchError((Object _) {
-        _setConnected(false);
-      });
+      socket.ready
+          .then((_) {
+            if (mounted) {
+              _setConnected(true);
+            }
+          })
+          .catchError((Object _) {
+            _setConnected(false);
+          });
     } catch (_) {
       _setConnected(false);
     }
+  }
+
+  static ChatSocket _connectWebSocket(Uri uri) {
+    return WebSocketChatSocket(WebSocketChannel.connect(uri));
   }
 
   void _setConnected(bool value) {
@@ -153,6 +158,13 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
     if (text.isEmpty) {
       return;
     }
+    final socket = _socket;
+    if (!_connected || socket == null) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(const SnackBar(content: Text('后端未连接，消息未发送')));
+      return;
+    }
 
     setState(() {
       _messages.add(
@@ -167,48 +179,9 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
     });
     _inputController.clear();
     _scrollToEnd();
-    final channel = _channel;
-    if (_connected && channel != null) {
-      channel.sink.add(
-        jsonEncode({
-          'clientId': _clientId,
-          'sender': '我',
-          'text': text,
-        }),
-      );
-    } else {
-      _scheduleReply();
-    }
-  }
-
-  void _scheduleReply() {
-    _replyTimer?.cancel();
-    _replyTimer = Timer(const Duration(milliseconds: 1200), () {
-      if (!mounted) {
-        return;
-      }
-
-      const replies = [
-        '收到，这个节奏很稳。',
-        '流动感刚刚好，不抢内容。',
-        '继续发，我在看效果。',
-        '嗯，玻璃气泡很舒服。',
-      ];
-      final reply = replies[_replySeed % replies.length];
-      _replySeed++;
-
-      setState(() {
-        _messages.add(
-          ChatMessage(
-            id: 'reply-${DateTime.now().microsecondsSinceEpoch}',
-            sender: 'Mia',
-            text: reply,
-            time: DateTime.now(),
-          ),
-        );
-      });
-      _scrollToEnd();
-    });
+    socket.sink.add(
+      jsonEncode({'clientId': _clientId, 'sender': '我', 'text': text}),
+    );
   }
 
   void _scrollToEnd() {
