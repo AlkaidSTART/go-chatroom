@@ -6,7 +6,6 @@ import 'package:flutter_boring_avatars/flutter_boring_avatars.dart';
 
 import 'breathing_avatar.dart';
 import 'flow_background.dart';
-import 'particle_text_background.dart';
 
 class ChatPage extends StatefulWidget {
   const ChatPage({super.key});
@@ -142,7 +141,6 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
             ),
           ),
           FlowBackground(animation: _flowController),
-          const ParticleTextBackground(text: '微光'),
           SafeArea(
             child: Center(
               child: ConstrainedBox(
@@ -168,18 +166,18 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
   }
 
   Widget _buildHeader() {
-    return const GlassPanel(
-      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+    return GlassPanel(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
         children: [
-          BreathingAvatar(
+          const BreathingAvatar(
             name: '微光',
             type: BoringAvatarType.sunset,
             size: 42,
             glowColor: Color(0xFF9ED9FF),
           ),
-          SizedBox(width: 12),
-          Expanded(
+          const SizedBox(width: 12),
+          const Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -219,7 +217,17 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
               ],
             ),
           ),
-          Icon(Icons.more_horiz_rounded, color: Color(0xFF64748B)),
+          TextButton.icon(
+            onPressed: () => Navigator.of(context).maybePop(),
+            icon: const Icon(Icons.logout_rounded, size: 18),
+            label: const Text('退出'),
+            style: TextButton.styleFrom(
+              foregroundColor: const Color(0xFF64748B),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+          ),
         ],
       ),
     );

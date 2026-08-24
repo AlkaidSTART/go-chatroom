@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'chat_page.dart';
+import 'home_page.dart';
 
 void main() {
   runApp(const ChatApp());
@@ -23,7 +23,7 @@ class ChatApp extends StatelessWidget {
         ),
         scaffoldBackgroundColor: const Color(0xFFF7FAFC),
       ),
-      home: const ChatPage(),
+      home: const HomePage(),
     );
   }
 }
