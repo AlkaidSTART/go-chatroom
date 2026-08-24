@@ -1,11 +1,11 @@
 {
-    "name": "frontend",
-    "short_name": "frontend",
+    "name": "微光聊天室",
+    "short_name": "微光",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#F7FAFC",
+    "theme_color": "#F7FAFC",
+    "description": "白色玻璃质感的轻量聊天界面。",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
